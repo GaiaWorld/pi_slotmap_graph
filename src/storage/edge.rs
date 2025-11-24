@@ -66,14 +66,14 @@ where
 
     /// 获取边数据的不可变引用
     #[inline]
-    pub fn get(&self, id: EdgeId) -> Option<&E> {
-        self.data.get(id.key()).map(|v|&v.0)
+    pub fn get(&self, id: EdgeId) -> Option<&(E, EdgeInfo)> {
+        self.data.get(id.key())
     }
 
     /// 获取边数据的可变引用
     #[inline]
-    pub fn get_mut(&mut self, id: EdgeId) -> Option<&mut E> {
-        self.data.get_mut(id.key()).map(|v|&mut v.0)
+    pub fn get_mut(&mut self, id: EdgeId) -> Option<&mut (E, EdgeInfo)> {
+        self.data.get_mut(id.key())
     }
 
     /// 获取连接信息的不可变引用
