@@ -353,6 +353,27 @@ where
     Vertex: Element + Clone,
     Edge: Element + Clone,
 {
+    /// 创建一个新的空图
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个空的 `SlotMapGraph` 实例，不包含任何顶点或边。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::SlotMapGraph;
+    ///
+    /// let graph: SlotMapGraph<String, i32> = SlotMapGraph::new();
+    /// assert_eq!(graph.vertex_count(), 0);
+    /// assert_eq!(graph.edge_count(), 0);
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(1)
+    /// - **空间复杂度**: O(1)
+    /// - **内存分配**: 最小化初始分配
     pub fn new() -> Self {
         Self {
             vertices: VertexContainer::new(),
@@ -361,16 +382,120 @@ where
     }
 
     /// 获取边的起始顶点
+    ///
+    /// 根据给定的边ID，返回该边的起始顶点ID。如果边不存在，返回None。
+    ///
+    /// # 参数
+    ///
+    /// * `edge_id` - 要查询的边的标识符
+    ///
+    /// # 返回值
+    ///
+    /// * `Some(VertexId)` - 边的起始顶点ID
+    /// * `None` - 边不存在或已被删除
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::SlotMapGraph;
+    ///
+    /// let mut graph = SlotMapGraph::new();
+    /// let v1 = graph.add_vertex("A");
+    /// let v2 = graph.add_vertex("B");
+    /// let edge = graph.add_edge("connects", v1, v2);
+    ///
+    /// assert_eq!(graph.edge_from(edge), Some(v1));
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(1) - 直接通过SlotMap查找
+    /// - **空间复杂度**: O(1) - 不分配额外内存
     pub fn edge_from(&self, edge_id: EdgeId) -> Option<VertexId> {
         self.edges.get_connection(edge_id).map(|info| info.from())
     }
 
     /// 获取边的目标顶点
+    ///
+    /// 根据给定的边ID，返回该边的目标顶点ID。如果边不存在，返回None。
+    ///
+    /// # 参数
+    ///
+    /// * `edge_id` - 要查询的边的标识符
+    ///
+    /// # 返回值
+    ///
+    /// * `Some(VertexId)` - 边的目标顶点ID
+    /// * `None` - 边不存在或已被删除
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::SlotMapGraph;
+    ///
+    /// let mut graph = SlotMapGraph::new();
+    /// let v1 = graph.add_vertex("A");
+    /// let v2 = graph.add_vertex("B");
+    /// let edge = graph.add_edge("connects", v1, v2);
+    ///
+    /// assert_eq!(graph.edge_to(edge), Some(v2));
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(1) - 直接通过SlotMap查找
+    /// - **空间复杂度**: O(1) - 不分配额外内存
     pub fn edge_to(&self, edge_id: EdgeId) -> Option<VertexId> {
         self.edges.get_connection(edge_id).map(|info| info.to())
     }
 
     /// 获取从指定顶点出发的所有边
+    ///
+    /// 返回一个迭代器，产生从给定顶点出发的所有有向边。这是一个懒迭代器，
+    /// 按需生成边引用，不会预计算所有结果。
+    ///
+    /// # 参数
+    ///
+    /// * `vertex_id` - 源顶点的标识符
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个迭代器，产生 `EdgeReference` 类型的项，每个项包含：
+    /// - 边的ID
+    /// - 边的权重数据
+    /// - 起始和目标顶点ID
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::SlotMapGraph;
+    ///
+    /// let mut graph = SlotMapGraph::new();
+    /// let alice = graph.add_vertex("Alice");
+    /// let bob = graph.add_vertex("Bob");
+    /// let charlie = graph.add_vertex("Charlie");
+    ///
+    /// let friendship_ab = graph.add_edge("friend", alice, bob);
+    /// let follows_ac = graph.add_edge("follows", alice, charlie);
+    ///
+    /// // 查找Alice的所有出边
+    /// for edge_ref in graph.outgoing_edges(alice) {
+    ///     println!("Edge: {} -> {}", edge_ref.tail(), edge_ref.head());
+    ///     println!("Weight: {}", edge_ref.weight());
+    /// }
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(k) - k为顶点的出度
+    /// - **空间复杂度**: O(1) - 迭代器状态为常数大小
+    /// - **缓存友好**: 连续内存访问模式
+    ///
+    /// # 注意事项
+    ///
+    /// - 返回的迭代器持有图的不可变引用
+    /// - 在迭代期间不能修改图结构
+    /// - 如果顶点不存在，迭代器为空
     pub fn outgoing_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_from(vertex_id).filter_map(move |edge_id| {
             if let Some(conn) = self.edges.get_connection(edge_id) {
@@ -388,6 +513,52 @@ where
     }
 
     /// 获取指向指定顶点的所有边
+    ///
+    /// 返回一个迭代器，产生指向给定顶点的所有有向边。这是一个懒迭代器，
+    /// 按需生成边引用，不会预计算所有结果。
+    ///
+    /// # 参数
+    ///
+    /// * `vertex_id` - 目标顶点的标识符
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个迭代器，产生 `EdgeReference` 类型的项，每个项包含：
+    /// - 边的ID
+    /// - 边的权重数据
+    /// - 起始和目标顶点ID
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::SlotMapGraph;
+    ///
+    /// let mut graph = SlotMapGraph::new();
+    /// let alice = graph.add_vertex("Alice");
+    /// let bob = graph.add_vertex("Bob");
+    /// let charlie = graph.add_vertex("Charlie");
+    ///
+    /// let friendship_ab = graph.add_edge("friend", alice, bob);
+    /// let follows_cb = graph.add_edge("follows", charlie, bob);
+    ///
+    /// // 查找Bob的所有入边
+    /// for edge_ref in graph.incoming_edges(bob) {
+    ///     println!("Edge: {} -> {}", edge_ref.tail(), edge_ref.head());
+    ///     println!("From: {}", edge_ref.tail());
+    /// }
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(k) - k为顶点的入度
+    /// - **空间复杂度**: O(1) - 迭代器状态为常数大小
+    /// - **缓存友好**: 连续内存访问模式
+    ///
+    /// # 注意事项
+    ///
+    /// - 返回的迭代器持有图的不可变引用
+    /// - 在迭代期间不能修改图结构
+    /// - 如果顶点不存在，迭代器为空
     pub fn incoming_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_to(vertex_id).filter_map(move |edge_id| {
             if let Some(conn) = self.edges.get_connection(edge_id) {

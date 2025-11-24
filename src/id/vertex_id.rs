@@ -66,16 +66,33 @@ use std::fmt;
 /// let cloned = vertex_id;
 /// assert_eq!(vertex_id, cloned);
 /// ```
+// 使用派生宏自动实现常用的trait
+// - Debug: 支持调试输出
+// - Clone/Copy: 支持值复制，因为ID可以安全复制
+// - PartialEq/Eq: 支持相等性比较
+// - Hash: 支持在HashMap、HashSet等集合中使用
+// - Default: 支持默认值（虽然实际使用中很少用到）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexId(pub(crate) DefaultKey);
 
 impl VertexId {
     /// 创建新的顶点ID
     ///
-    /// # Arguments
-    /// * `key` - 底层的 `DefaultKey`
+    /// 这是一个包装函数，将底层的 `DefaultKey` 包装成类型安全的 `VertexId`。
+    /// 通过这种newtype模式，我们获得了编译时的类型安全保证。
     ///
-    /// # Examples
+    /// # 设计理念
+    ///
+    /// 使用newtype模式而非类型别名的好处：
+    /// 1. **编译时类型检查**: VertexId和EdgeId是不同的类型
+    /// 2. **零成本抽象**: 运行时没有额外开销
+    /// 3. **API清晰**: 明确区分顶点和边标识符
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 底层的 `DefaultKey`，来自SlotMap的内部键
+    ///
+    /// # 示例
     ///
     /// ```rust
     /// use slotmap_graph::id::VertexId;
@@ -84,6 +101,12 @@ impl VertexId {
     /// let key = DefaultKey::default();
     /// let vertex_id = VertexId::new(key);
     /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(1) - 简单的包装操作
+    /// - **空间复杂度**: O(1) - 8字节存储
+    /// - **内存布局**: 与DefaultKey相同，零开销
     #[inline]
     pub fn new(key: DefaultKey) -> Self {
         Self(key)

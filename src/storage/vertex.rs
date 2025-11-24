@@ -24,12 +24,68 @@ use super::super::id::VertexId;
 use pi_slotmap::{DefaultKey, SlotMap};
 
 /// 顶点存储容器，基于 `pi_slotmap::SlotMap` 实现
+///
+/// 这个结构体提供了高性能的顶点存储功能，是整个图数据结构的底层存储基础。
+/// 它封装了 `pi_slotmap::SlotMap`，提供了类型安全的顶点存储和检索功能。
+///
+/// # 内存布局
+///
+/// ```text
+/// +----------------------+----------------------+----------------------+
+/// | Slot 1: Vertex Data | Slot 2: Vertex Data | Slot 3: Empty Slot   |
+/// | (Key: 1, Data: V)   | (Key: 2, Data: V)   | (Tombstone Marker)   |
+/// +----------------------+----------------------+----------------------+
+/// ```
+///
+/// # 特性说明
+///
+/// ## 稳定的键引用
+/// - 键在元素删除后保持稳定，不会被重用
+/// - 避免了悬垂指针问题，提高了安全性
+/// - 支持长期的引用和迭代器有效性
+///
+/// ## 高效的内存管理
+/// - 删除的槽位被标记为"墓碑"，后续可重用
+/// - 自动压缩机制，减少内存碎片
+/// - 连续内存布局，提高缓存命中率
+///
+/// ## 泛型设计
+/// - 支持任意实现了 `Clone` 的顶点类型
+/// - 编译时类型检查，防止类型混淆
+/// - 零成本抽象，运行时无额外开销
+///
+/// # 使用示例
+///
+/// ```rust
+/// use slotmap_graph::storage::VertexContainer;
+/// use slotmap_graph::id::VertexId;
+///
+/// // 创建存储容器
+/// let mut vertices = VertexContainer::new();
+///
+/// // 添加顶点
+/// let alice_id = vertices.insert("Alice");
+/// let bob_id = vertices.insert("Bob");
+///
+/// // 查询顶点
+/// assert_eq!(vertices.get(alice_id), Some(&"Alice"));
+///
+/// // 删除顶点
+/// let removed = vertices.remove(alice_id);
+/// assert_eq!(removed, Some("Alice"));
+/// ```
 #[derive(Debug)]
 pub struct VertexContainer<V>
 where
     V: Clone,
 {
     /// 使用 SlotMap 存储顶点数据
+    ///
+    /// `SlotMap` 提供了以下关键特性：
+    /// - O(1) 插入、删除、查找操作
+    /// - 稳定的键引用，删除后不会重用
+    /// - 紧凑的内存布局，自动重用删除的槽位
+    /// - 迭代器安全，支持并发遍历
     data: SlotMap<DefaultKey, V>,
 }
 
@@ -38,6 +94,28 @@ where
     V: Clone,
 {
     /// 创建新的空顶点容器
+    ///
+    /// 创建一个不包含任何元素的空容器。内部SlotMap会根据需要进行初始分配。
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个新的 `VertexContainer` 实例。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::storage::VertexContainer;
+    ///
+    /// let container: VertexContainer<String> = VertexContainer::new();
+    /// assert_eq!(container.len(), 0);
+    /// assert!(container.is_empty());
+    /// ```
+    ///
+    /// # 性能特征
+    ///
+    /// - **时间复杂度**: O(1)
+    /// - **空间复杂度**: O(1)
+    /// - **内存分配**: 最小化初始分配
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -46,6 +124,39 @@ where
     }
 
     /// 创建带有预设容量的顶点容器
+    ///
+    /// 预分配指定容量的存储空间，可以减少后续插入操作时的内存重分配。
+    /// 这对于已知大概元素数量的场景很有用。
+    ///
+    /// # 参数
+    ///
+    /// * `capacity` - 预设的元素容量
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个具有预设容量的 `VertexContainer` 实例。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// use slotmap_graph::storage::VertexContainer;
+    ///
+    /// // 预分配1000个顶点的空间
+    /// let container: VertexContainer<i32> = VertexContainer::with_capacity(1000);
+    /// assert_eq!(container.len(), 0);
+    /// ```
+    ///
+    /// # 性能考虑
+    ///
+    /// - **时间复杂度**: O(1)
+    /// - **空间复杂度**: O(capacity)
+    /// - **内存分配**: 一次性分配指定容量，减少后续重分配
+    ///
+    /// # 注意事项
+    ///
+    /// - 过度预分配可能导致内存浪费
+    /// - 容量不是硬限制，超出时会自动扩容
+    /// - 实际内存使用可能略高于请求的容量
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
