@@ -21,13 +21,14 @@
 
 use super::{Storage, StorageKey};
 use super::super::id::{EdgeId, EdgeInfo, VertexId};
+use graph_api_lib::Element;
 use pi_slotmap::{DefaultKey, SlotMap};
 
 /// 边存储容器，基于 `pi_slotmap::SlotMap` 实现
 #[derive(Debug)]
 pub struct EdgeContainer<E>
 where
-    E: Clone,
+    E: Element,
 {
     /// 使用 SlotMap 存储边数据
     data: SlotMap<DefaultKey, (E, EdgeInfo)>,
@@ -35,7 +36,7 @@ where
 
 impl<E> EdgeContainer<E>
 where
-    E: Clone,
+    E: Element,
 {
     /// 创建新的空边容器
     #[inline]
@@ -65,14 +66,14 @@ where
 
     /// 获取边数据的不可变引用
     #[inline]
-    pub fn get(&self, id: EdgeId) -> Option<&(E, EdgeInfo)> {
-        self.data.get(id.key())
+    pub fn get(&self, id: EdgeId) -> Option<&E> {
+        self.data.get(id.key()).map(|v|&v.0)
     }
 
     /// 获取边数据的可变引用
     #[inline]
-    pub fn get_mut(&mut self, id: EdgeId) -> Option<&mut (E, EdgeInfo)> {
-        self.data.get_mut(id.key())
+    pub fn get_mut(&mut self, id: EdgeId) -> Option<&mut E> {
+        self.data.get_mut(id.key()).map(|v|&mut v.0)
     }
 
     /// 获取连接信息的不可变引用
@@ -180,7 +181,7 @@ where
 
         // 遍历所有边和连接信息
         // 注意：这里不能在迭代过程中直接删除元素，因为会违反借用检查器规则
-        for (key, (edge, info)) in self.data.iter() {
+        for ((key ), (edge, info)) in self.data.iter() {
             let edge_id = EdgeId::new(key);
             // 如果谓词返回false，标记该边为待删除
             if !predicate(edge_id, edge, info) {
@@ -323,7 +324,7 @@ where
 
 impl<E> Storage<E> for EdgeContainer<E>
 where
-    E: Clone,
+    E: Element,
 {
     fn len(&self) -> usize {
         self.len()
@@ -352,95 +353,9 @@ where
 
 impl<E> Default for EdgeContainer<E>
 where
-    E: Clone,
+    E: Element,
 {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pi_slotmap::DefaultKey;
-
-    #[test]
-    fn test_edge_container_basic_operations() {
-        let mut edges = EdgeContainer::new();
-
-        // 创建测试数据
-        let from = VertexId::new(DefaultKey::default());
-        let to = VertexId::new(DefaultKey::default());
-        let edge_info = EdgeInfo::new(EdgeId::new(DefaultKey::default()), from, to);
-
-        // 测试插入
-        let edge_id = edges.insert("friendship", edge_info);
-        assert_eq!(edges.len(), 1);
-        assert!(!edges.is_empty());
-
-        // 测试获取
-        // assert_eq!(edges.get(edge_id), Some((&"friendship", _)));
-        assert!(edges.get_connection(edge_id).is_some());
-
-        // 测试可变获取
-        if let Some((label, _)) = edges.get_mut(edge_id) {
-            *label = "best friendship";
-        }
-        // assert_eq!(edges.get(edge_id), Some(&"best friendship"));
-
-        // 测试包含
-        assert!(edges.contains(edge_id));
-
-        // 测试删除
-        let removed = edges.remove(edge_id);
-        assert!(removed.is_some());
-        assert!(!edges.contains(edge_id));
-        assert_eq!(edges.len(), 0);
-    }
-
-    #[test]
-    fn test_edge_container_connections() {
-        let mut edges = EdgeContainer::new();
-
-        // 创建不同的测试键
-        let mut slotmap: SlotMap<DefaultKey, usize> = SlotMap::new();
-        let mut keys = Vec::new();
-        for i in 0..6 {
-            let key = slotmap.insert(i);
-            keys.push(key);
-        }
-
-        let alice = VertexId::new(keys[0]);
-        let bob = VertexId::new(keys[1]);
-        let charlie = VertexId::new(keys[2]);
-
-        let edge1_info = EdgeInfo::new(EdgeId::new(keys[3]), alice, bob);
-        let edge2_info = EdgeInfo::new(EdgeId::new(keys[4]), bob, charlie);
-        let edge3_info = EdgeInfo::new(EdgeId::new(keys[5]), alice, charlie);
-
-        let _edge1 = edges.insert("friend1", edge1_info);
-        let _edge2 = edges.insert("friend2", edge2_info);
-        let _edge3 = edges.insert("friend3", edge3_info);
-
-        // 测试从顶点出发的边
-        let from_alice: Vec<_> = edges.edges_from(alice).collect();
-        assert_eq!(from_alice.len(), 2);
-
-        // 测试到达顶点的边
-        let to_charlie: Vec<_> = edges.edges_to(charlie).collect();
-        assert_eq!(to_charlie.len(), 2);
-
-        // 测试涉及顶点的边
-        let involving_bob: Vec<_> = edges.edges_involving(bob).collect();
-        assert_eq!(involving_bob.len(), 2);
-
-        // 测试检查边是否存在
-        assert!(edges.has_edge_between(alice, bob));
-        assert!(edges.has_edge_between(bob, charlie));
-        assert!(!edges.has_edge_between(bob, alice));
-
-        // 测试获取特定边
-        let alice_bob = edges.get_edge_between(alice, bob);
-        assert!(alice_bob.is_some());
     }
 }

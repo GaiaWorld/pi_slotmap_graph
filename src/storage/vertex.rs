@@ -76,8 +76,8 @@ use pi_slotmap::{DefaultKey, SlotMap};
 /// ```
 #[derive(Debug)]
 pub struct VertexContainer<V>
-where
-    V: Clone,
+// where
+//     V: Clone,
 {
     /// 使用 SlotMap 存储顶点数据
     ///
@@ -90,8 +90,8 @@ where
 }
 
 impl<V> VertexContainer<V>
-where
-    V: Clone,
+// where
+//     V: Clone,
 {
     /// 创建新的空顶点容器
     ///
