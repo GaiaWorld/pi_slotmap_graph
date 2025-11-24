@@ -15,8 +15,8 @@ use std::marker::PhantomData;
 #[derive(Debug)]
 pub struct SlotMapGraph<Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element,
+    Edge: Element,
 {
     vertices: VertexContainer<Vertex>,
     edges: EdgeContainer<Edge>,
@@ -264,8 +264,8 @@ where
 /// 顶点迭代器
 pub struct VertexIter<'search, 'graph, Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element ,
+    Edge: Element ,
 {
     _phantom: PhantomData<(&'search (), Vertex, Edge)>,
     vertices: &'graph VertexContainer<Vertex>,
@@ -276,8 +276,8 @@ where
 
 impl<'graph, Vertex, Edge> Iterator for VertexIter<'_, 'graph, Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element,
+    Edge: Element,
 {
     type Item = VertexReference<'graph, SlotMapGraph<Vertex, Edge>>;
 
@@ -299,8 +299,8 @@ where
 /// 边迭代器
 pub struct EdgeIter<'search, 'graph, Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element ,
+    Edge: Element,
 {
     _phantom: PhantomData<(&'search (), Vertex, Edge)>,
     edges: &'graph EdgeContainer<Edge>,
@@ -311,8 +311,8 @@ where
 
 impl<'graph, Vertex, Edge> Iterator for EdgeIter<'_, 'graph, Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element,
+    Edge: Element,
 {
     type Item = EdgeReference<'graph, SlotMapGraph<Vertex, Edge>>;
 
@@ -669,8 +669,8 @@ where
 
 impl<Vertex, Edge> Graph for SlotMapGraph<Vertex, Edge>
 where
-    Vertex: Element + Clone,
-    Edge: Element + Clone,
+    Vertex: Element,
+    Edge: Element,
 {
     type Vertex = Vertex;
     type Edge = Edge;
