@@ -181,7 +181,7 @@ where
 
         // 遍历所有边和连接信息
         // 注意：这里不能在迭代过程中直接删除元素，因为会违反借用检查器规则
-        for ((key ), (edge, info)) in self.data.iter() {
+        for (key, (edge, info)) in self.data.iter() {
             let edge_id = EdgeId::new(key);
             // 如果谓词返回false，标记该边为待删除
             if !predicate(edge_id, edge, info) {
