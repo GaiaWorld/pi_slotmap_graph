@@ -322,8 +322,8 @@ where
         }
 
         while let Some(id) = self.keys.next() {
-            if let Some(weight) = self.edges.get(id) {
-                if let Some(conn) = self.edges.get_connection(id) {
+            if let Some((weight, conn)) = self.edges.get(id) {
+                // if let Some(conn) = self.edges.get_connection(id) {
                     self.count += 1;
                     return Some(EdgeReference {
                         id,
@@ -331,7 +331,7 @@ where
                         from: conn.from(),
                         to: conn.to(),
                     });
-                }
+                // }
             }
         }
         None
@@ -498,8 +498,8 @@ where
     /// - 如果顶点不存在，迭代器为空
     pub fn outgoing_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_from(vertex_id).filter_map(move |edge_id| {
-            if let Some(conn) = self.edges.get_connection(edge_id) {
-                if let Some(weight) = self.edges.get(edge_id) {
+            // if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some((weight, conn)) = self.edges.get(edge_id) {
                     return Some(EdgeReference {
                         id: edge_id,
                         weight,
@@ -507,7 +507,7 @@ where
                         to: conn.to(),
                     });
                 }
-            }
+            // }
             None
         })
     }
@@ -561,8 +561,8 @@ where
     /// - 如果顶点不存在，迭代器为空
     pub fn incoming_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_to(vertex_id).filter_map(move |edge_id| {
-            if let Some(conn) = self.edges.get_connection(edge_id) {
-                if let Some(weight) = self.edges.get(edge_id) {
+            // if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some((weight, conn)) = self.edges.get(edge_id) {
                     return Some(EdgeReference {
                         id: edge_id,
                         weight,
@@ -570,7 +570,7 @@ where
                         to: conn.to(),
                     });
                 }
-            }
+            // }
             None
         })
     }
@@ -578,8 +578,8 @@ where
     /// 获取与指定顶点相邻的所有边（入边和出边）
     pub fn adjacent_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_adjacent(vertex_id).filter_map(move |edge_id| {
-            if let Some(conn) = self.edges.get_connection(edge_id) {
-                if let Some(weight) = self.edges.get(edge_id) {
+            // if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some((weight, conn)) = self.edges.get(edge_id) {
                     return Some(EdgeReference {
                         id: edge_id,
                         weight,
@@ -587,7 +587,7 @@ where
                         to: conn.to(),
                     });
                 }
-            }
+            // }
             None
         })
     }
@@ -600,8 +600,8 @@ where
     /// 获取两个顶点之间的所有边
     pub fn edges_between(&self, from: VertexId, to: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
         self.edges.edges_between(from, to).filter_map(move |edge_id| {
-            if let Some(conn) = self.edges.get_connection(edge_id) {
-                if let Some(weight) = self.edges.get(edge_id) {
+            // if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some((weight, conn)) = self.edges.get(edge_id) {
                     return Some(EdgeReference {
                         id: edge_id,
                         weight,
@@ -609,7 +609,7 @@ where
                         to: conn.to(),
                     });
                 }
-            }
+            // }
             None
         })
     }
@@ -720,8 +720,8 @@ where
     }
 
     fn edge(&self, id: Self::EdgeId) -> Option<Self::EdgeReference<'_>> {
-        if let Some(conn) = self.edges.get_connection(id) {
-            if let Some(weight) = self.edges.get(id) {
+        // if let Some(conn) = self.edges.get_connection(id) {
+            if let Some((weight, conn)) = self.edges.get(id) {
                 return Some(EdgeReference {
                     id,
                     weight,
@@ -729,14 +729,15 @@ where
                     to: conn.to(),
                 });
             }
-        }
+        // }
         None
     }
 
     fn edge_mut(&mut self, edge: Self::EdgeId) -> Option<Self::EdgeReferenceMut<'_>> {
-        let conn = self.edges.get_connection(edge)?;
-        let (from, to) = (conn.from(), conn.to());
-        if let Some(weight) = self.edges.get_mut(edge) {
+        // let conn = self.edges.get_connection(edge)?;
+       
+        if let Some((weight, conn)) = self.edges.get_mut(edge) {
+             let (from, to) = (conn.from(), conn.to());
             return Some(EdgeReferenceMut {
                 id: edge,
                 weight,
@@ -766,7 +767,7 @@ where
             candidate_edges
                 .into_iter()
                 .filter(|&edge_id| {
-                    if let Some(edge_weight) = self.edges.get(edge_id) {
+                    if let Some((edge_weight, _)) = self.edges.get(edge_id) {
                         edge_weight.label() == target_label
                     } else {
                         false
@@ -888,7 +889,7 @@ mod tests {
     #[derive(Debug, Clone)]
     struct TestVertex {
         name: String,
-        value: i32,
+        _value: i32,
     }
 
     #[derive(Debug, Clone)]
@@ -919,21 +920,21 @@ mod tests {
         // 添加顶点
         let v1 = graph.add_vertex(TestVertex {
             name: "A".to_string(),
-            value: 1,
+            _value: 1,
         });
         let v2 = graph.add_vertex(TestVertex {
             name: "B".to_string(),
-            value: 2,
+            _value: 2,
         });
         let v3 = graph.add_vertex(TestVertex {
             name: "C".to_string(),
-            value: 3,
+            _value: 3,
         });
 
         // 添加边
         let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });
-        let e2 = graph.add_edge(v2, v3, TestEdge { weight: 2.5 });
-        let e3 = graph.add_edge(v1, v3, TestEdge { weight: 3.5 });
+        let _e2 = graph.add_edge(v2, v3, TestEdge { weight: 2.5 });
+        let _e3 = graph.add_edge(v1, v3, TestEdge { weight: 3.5 });
 
         // 验证顶点
         assert_eq!(graph.vertex(v1).unwrap().weight().name, "A");
@@ -969,11 +970,11 @@ mod tests {
 
         let v1 = graph.add_vertex(TestVertex {
             name: "A".to_string(),
-            value: 1,
+            _value: 1,
         });
         let v2 = graph.add_vertex(TestVertex {
             name: "B".to_string(),
-            value: 2,
+            _value: 2,
         });
 
         let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });
@@ -991,15 +992,15 @@ mod tests {
 
         let v1 = graph.add_vertex(TestVertex {
             name: "A".to_string(),
-            value: 1,
+            _value: 1,
         });
         let v2 = graph.add_vertex(TestVertex {
             name: "B".to_string(),
-            value: 2,
+            _value: 2,
         });
         let v3 = graph.add_vertex(TestVertex {
             name: "C".to_string(),
-            value: 3,
+            _value: 3,
         });
 
         let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });

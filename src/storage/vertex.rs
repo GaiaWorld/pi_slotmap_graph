@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn test_vertex_container_iterators() {
         let mut vertices = VertexContainer::new();
-        let ids: Vec<_> = (1..=5).map(|i| vertices.insert(format!("Vertex{}", i))).collect();
+        let _: Vec<_> = (1..=5).map(|i| vertices.insert(format!("Vertex{}", i))).collect();
 
         // 测试迭代器
         let collected: Vec<_> = vertices.iter().collect();

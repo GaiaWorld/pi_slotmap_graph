@@ -150,7 +150,7 @@ pub struct ContainerIter<'a, T, C>
 where
     C: 'a,
 {
-    container: &'a C,
+    _container: &'a C,
     _phantom: std::marker::PhantomData<T>,
 }
 
@@ -160,9 +160,9 @@ where
 {
     /// 创建新的容器迭代器
     #[inline]
-    pub fn new(container: &'a C) -> Self {
+    pub fn new(_container: &'a C) -> Self {
         Self {
-            container,
+            _container,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_container_iterators() {
         let mut container: Container<i32> = Container::new();
-        let keys: Vec<_> = (1..=5).map(|i| container.insert(i)).collect();
+        let _: Vec<_> = (1..=5).map(|i| container.insert(i)).collect();
 
         // 测试迭代器
         let collected: Vec<_> = container.iter().collect();
