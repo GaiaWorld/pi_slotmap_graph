@@ -1,0 +1,851 @@
+use super::id::{EdgeId, VertexId};
+use super::id::edge_info::EdgeInfo;
+use super::storage::{EdgeContainer, VertexContainer};
+use graph_api_lib::{
+    EdgeSearch, Element, ElementId, Graph,
+    SupportsClear, SupportsEdgeAdjacentLabelIndex, SupportsEdgeHashIndex, SupportsEdgeLabelIndex,
+    SupportsEdgeRangeIndex, SupportsElementRemoval, SupportsVertexFullTextIndex,
+    SupportsVertexHashIndex, SupportsVertexLabelIndex, SupportsVertexRangeIndex,
+    VertexSearch,
+};
+use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
+
+/// 基于SlotMap的图实现，严格参照graph-api-simplegraph结构
+#[derive(Debug)]
+pub struct SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    vertices: VertexContainer<Vertex>,
+    edges: EdgeContainer<Edge>,
+}
+
+/// 顶点引用
+#[derive(Debug)]
+pub struct VertexReference<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    id: Graph::VertexId,
+    weight: &'graph Graph::Vertex,
+}
+
+impl<Graph> From<VertexReference<'_, Graph>> for ElementId<Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    fn from(value: VertexReference<Graph>) -> Self {
+        ElementId::Vertex(value.id)
+    }
+}
+
+impl<'graph, Graph> graph_api_lib::VertexReference<'graph, Graph> for VertexReference<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId>,
+{
+    fn id(&self) -> Graph::VertexId {
+        self.id
+    }
+
+    fn weight(&self) -> &Graph::Vertex {
+        self.weight
+    }
+
+    fn project<
+        'reference,
+        T: graph_api_lib::Project<'reference, <Graph as graph_api_lib::Graph>::Vertex>,
+    >(
+        &'reference self,
+    ) -> Option<T> {
+        graph_api_lib::Project::project(self.weight)
+    }
+}
+
+/// 可变顶点引用
+pub struct VertexReferenceMut<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    id: Graph::VertexId,
+    weight: &'graph mut Graph::Vertex,
+}
+
+impl<Graph> Debug for VertexReferenceMut<'_, Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VertexReferenceMut")
+            .field("id", &self.id)
+            .field("weight", &"&mut ...")
+            .finish()
+    }
+}
+
+impl<Graph> From<VertexReferenceMut<'_, Graph>> for ElementId<Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    fn from(value: VertexReferenceMut<Graph>) -> Self {
+        ElementId::Vertex(value.id)
+    }
+}
+
+impl<'graph, Graph> graph_api_lib::VertexReference<'graph, Graph>
+    for VertexReferenceMut<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId>,
+{
+    fn id(&self) -> Graph::VertexId {
+        self.id
+    }
+
+    fn weight(&self) -> &Graph::Vertex {
+        self.weight
+    }
+
+    fn project<
+        'reference,
+        T: graph_api_lib::Project<'reference, <Graph as graph_api_lib::Graph>::Vertex>,
+    >(
+        &'reference self,
+    ) -> Option<T> {
+        graph_api_lib::Project::project(self.weight)
+    }
+}
+
+impl<'graph, Graph> graph_api_lib::VertexReferenceMut<'graph, Graph>
+    for VertexReferenceMut<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId> + 'graph,
+{
+    type MutationListener<'reference> = ();
+
+    fn weight_mut(&mut self) -> &mut Graph::Vertex {
+        self.weight
+    }
+
+    fn project_mut<
+        'reference,
+        T: graph_api_lib::ProjectMut<
+                'reference,
+                <Graph as graph_api_lib::Graph>::Vertex,
+                Self::MutationListener<'reference>,
+            >,
+    >(
+        &'reference mut self,
+    ) -> Option<T> {
+        graph_api_lib::ProjectMut::project_mut(self.weight, ())
+    }
+}
+
+/// 边引用
+#[derive(Debug)]
+pub struct EdgeReference<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    id: Graph::EdgeId,
+    weight: &'graph Graph::Edge,
+    from: Graph::VertexId,
+    to: Graph::VertexId,
+}
+
+impl<Graph> From<EdgeReference<'_, Graph>> for ElementId<Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    fn from(value: EdgeReference<Graph>) -> Self {
+        ElementId::Edge(value.id)
+    }
+}
+
+impl<'a, Graph> graph_api_lib::EdgeReference<'a, Graph> for EdgeReference<'a, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId>,
+{
+    fn id(&self) -> Graph::EdgeId {
+        self.id
+    }
+
+    fn tail(&self) -> Graph::VertexId {
+        self.from
+    }
+
+    fn head(&self) -> Graph::VertexId {
+        self.to
+    }
+
+    fn weight(&self) -> &Graph::Edge {
+        self.weight
+    }
+
+    fn project<'reference, T: graph_api_lib::Project<'reference, <Graph as graph_api_lib::Graph>::Edge>>(
+        &'reference self,
+    ) -> Option<T> {
+        graph_api_lib::Project::project(self.weight)
+    }
+}
+
+/// 可变边引用
+#[derive(Debug)]
+pub struct EdgeReferenceMut<'graph, Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    id: Graph::EdgeId,
+    weight: &'graph mut Graph::Edge,
+    from: Graph::VertexId,
+    to: Graph::VertexId,
+}
+
+impl<Graph> From<EdgeReferenceMut<'_, Graph>> for ElementId<Graph>
+where
+    Graph: graph_api_lib::Graph,
+{
+    fn from(value: EdgeReferenceMut<Graph>) -> Self {
+        ElementId::Edge(value.id)
+    }
+}
+
+impl<Graph> graph_api_lib::EdgeReference<'_, Graph> for EdgeReferenceMut<'_, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId>,
+{
+    fn id(&self) -> Graph::EdgeId {
+        self.id
+    }
+
+    fn tail(&self) -> Graph::VertexId {
+        self.from
+    }
+
+    fn head(&self) -> Graph::VertexId {
+        self.to
+    }
+
+    fn weight(&self) -> &Graph::Edge {
+        self.weight
+    }
+
+    fn project<'reference, T: graph_api_lib::Project<'reference, <Graph as graph_api_lib::Graph>::Edge>>(
+        &'reference self,
+    ) -> Option<T> {
+        graph_api_lib::Project::project(self.weight)
+    }
+}
+
+impl<Graph> graph_api_lib::EdgeReferenceMut<'_, Graph> for EdgeReferenceMut<'_, Graph>
+where
+    Graph: graph_api_lib::Graph<VertexId = VertexId, EdgeId = EdgeId>,
+{
+    type MutationListener<'reference> = ();
+
+    fn weight_mut(&mut self) -> &mut Graph::Edge {
+        self.weight
+    }
+
+    fn project_mut<
+        'reference,
+        T: graph_api_lib::ProjectMut<
+                'reference,
+                <Graph as graph_api_lib::Graph>::Edge,
+                Self::MutationListener<'reference>,
+            >,
+    >(
+        &'reference mut self,
+    ) -> Option<T> {
+        graph_api_lib::ProjectMut::project_mut(self.weight, ())
+    }
+}
+
+/// 顶点迭代器
+pub struct VertexIter<'search, 'graph, Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    _phantom: PhantomData<(&'search (), Vertex, Edge)>,
+    vertices: &'graph VertexContainer<Vertex>,
+    keys: std::vec::IntoIter<VertexId>,
+    count: usize,
+    limit: usize,
+}
+
+impl<'graph, Vertex, Edge> Iterator for VertexIter<'_, 'graph, Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    type Item = VertexReference<'graph, SlotMapGraph<Vertex, Edge>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.count >= self.limit {
+            return None;
+        }
+
+        while let Some(id) = self.keys.next() {
+            if let Some(weight) = self.vertices.get(id) {
+                self.count += 1;
+                return Some(VertexReference { id, weight });
+            }
+        }
+        None
+    }
+}
+
+/// 边迭代器
+pub struct EdgeIter<'search, 'graph, Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    _phantom: PhantomData<(&'search (), Vertex, Edge)>,
+    edges: &'graph EdgeContainer<Edge>,
+    keys: std::vec::IntoIter<EdgeId>,
+    count: usize,
+    limit: usize,
+}
+
+impl<'graph, Vertex, Edge> Iterator for EdgeIter<'_, 'graph, Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    type Item = EdgeReference<'graph, SlotMapGraph<Vertex, Edge>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.count >= self.limit {
+            return None;
+        }
+
+        while let Some(id) = self.keys.next() {
+            if let Some(weight) = self.edges.get(id) {
+                if let Some(conn) = self.edges.get_connection(id) {
+                    self.count += 1;
+                    return Some(EdgeReference {
+                        id,
+                        weight,
+                        from: conn.from(),
+                        to: conn.to(),
+                    });
+                }
+            }
+        }
+        None
+    }
+}
+
+impl<Vertex, Edge> Default for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Vertex, Edge> SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    pub fn new() -> Self {
+        Self {
+            vertices: VertexContainer::new(),
+            edges: EdgeContainer::new(),
+        }
+    }
+
+    /// 获取边的起始顶点
+    pub fn edge_from(&self, edge_id: EdgeId) -> Option<VertexId> {
+        self.edges.get_connection(edge_id).map(|info| info.from())
+    }
+
+    /// 获取边的目标顶点
+    pub fn edge_to(&self, edge_id: EdgeId) -> Option<VertexId> {
+        self.edges.get_connection(edge_id).map(|info| info.to())
+    }
+
+    /// 获取从指定顶点出发的所有边
+    pub fn outgoing_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
+        self.edges.edges_from(vertex_id).filter_map(move |edge_id| {
+            if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some(weight) = self.edges.get(edge_id) {
+                    return Some(EdgeReference {
+                        id: edge_id,
+                        weight,
+                        from: conn.from(),
+                        to: conn.to(),
+                    });
+                }
+            }
+            None
+        })
+    }
+
+    /// 获取指向指定顶点的所有边
+    pub fn incoming_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
+        self.edges.edges_to(vertex_id).filter_map(move |edge_id| {
+            if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some(weight) = self.edges.get(edge_id) {
+                    return Some(EdgeReference {
+                        id: edge_id,
+                        weight,
+                        from: conn.from(),
+                        to: conn.to(),
+                    });
+                }
+            }
+            None
+        })
+    }
+
+    /// 获取与指定顶点相邻的所有边（入边和出边）
+    pub fn adjacent_edges(&self, vertex_id: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
+        self.edges.edges_adjacent(vertex_id).filter_map(move |edge_id| {
+            if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some(weight) = self.edges.get(edge_id) {
+                    return Some(EdgeReference {
+                        id: edge_id,
+                        weight,
+                        from: conn.from(),
+                        to: conn.to(),
+                    });
+                }
+            }
+            None
+        })
+    }
+
+    /// 检查两个顶点之间是否存在边
+    pub fn has_edge(&self, from: VertexId, to: VertexId) -> bool {
+        self.edges.has_edge_between(from, to)
+    }
+
+    /// 获取两个顶点之间的所有边
+    pub fn edges_between(&self, from: VertexId, to: VertexId) -> impl Iterator<Item = EdgeReference<'_, Self>> {
+        self.edges.edges_between(from, to).filter_map(move |edge_id| {
+            if let Some(conn) = self.edges.get_connection(edge_id) {
+                if let Some(weight) = self.edges.get(edge_id) {
+                    return Some(EdgeReference {
+                        id: edge_id,
+                        weight,
+                        from: conn.from(),
+                        to: conn.to(),
+                    });
+                }
+            }
+            None
+        })
+    }
+
+    /// 获取顶点的出度
+    pub fn out_degree(&self, vertex_id: VertexId) -> usize {
+        self.edges.edges_from(vertex_id).count()
+    }
+
+    /// 获取顶点的入度
+    pub fn in_degree(&self, vertex_id: VertexId) -> usize {
+        self.edges.edges_to(vertex_id).count()
+    }
+
+    /// 获取顶点的度（入度+出度）
+    pub fn degree(&self, vertex_id: VertexId) -> usize {
+        self.edges.edges_adjacent(vertex_id).count()
+    }
+
+    /// 获取所有顶点
+    pub fn all_vertices(&self) -> impl Iterator<Item = (VertexId, &Vertex)> {
+        self.vertices.iter()
+    }
+
+    /// 获取所有边
+    pub fn all_edges(&self) -> impl Iterator<Item = (EdgeId, &Edge, VertexId, VertexId)> {
+        self.edges.iter_with_connections().map(|(id, edge, info)| {
+            (id, edge, info.from(), info.to())
+        })
+    }
+
+    /// 获取顶点数量
+    pub fn vertex_count(&self) -> usize {
+        self.vertices.len()
+    }
+
+    /// 获取边数量
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// 检查是否包含指定顶点
+    pub fn contains_vertex(&self, vertex_id: VertexId) -> bool {
+        self.vertices.contains(vertex_id)
+    }
+
+    /// 检查是否包含指定边
+    pub fn contains_edge(&self, edge_id: EdgeId) -> bool {
+        self.edges.contains(edge_id)
+    }
+
+    /// 检查图是否为空
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty() && self.edges.is_empty()
+    }
+}
+
+impl<Vertex, Edge> Graph for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    type Vertex = Vertex;
+    type Edge = Edge;
+    type VertexId = VertexId;
+    type EdgeId = EdgeId;
+    type VertexReference<'graph> = VertexReference<'graph, Self> where Self: 'graph;
+    type VertexReferenceMut<'graph> = VertexReferenceMut<'graph, Self> where Self: 'graph;
+    type EdgeReference<'graph> = EdgeReference<'graph, Self> where Self: 'graph;
+    type EdgeReferenceMut<'graph> = EdgeReferenceMut<'graph, Self> where Self: 'graph;
+    type EdgeIter<'search, 'graph> = EdgeIter<'search, 'graph, Vertex, Edge> where Self: 'graph;
+    type VertexIter<'search, 'graph> = VertexIter<'search, 'graph, Vertex, Edge> where Self: 'graph;
+
+    fn add_vertex(&mut self, vertex: Self::Vertex) -> Self::VertexId {
+        self.vertices.insert(vertex)
+    }
+
+    fn add_edge(
+        &mut self,
+        from: Self::VertexId,
+        to: Self::VertexId,
+        edge: Self::Edge,
+    ) -> Self::EdgeId {
+        let edge_info = EdgeInfo::new(EdgeId::default(), from, to);
+        self.edges.insert(edge, edge_info)
+    }
+
+    fn vertex(&self, id: Self::VertexId) -> Option<Self::VertexReference<'_>> {
+        self.vertices.get(id).map(|weight| VertexReference { id, weight })
+    }
+
+    fn vertex_mut(&mut self, id: Self::VertexId) -> Option<Self::VertexReferenceMut<'_>> {
+        self.vertices.get_mut(id).map(|weight| VertexReferenceMut { id, weight })
+    }
+
+    fn vertices<'search>(
+        &self,
+        search: &VertexSearch<'search, Self>,
+    ) -> Self::VertexIter<'search, '_> {
+        let keys: Vec<VertexId> = self.vertices.keys().collect();
+        VertexIter::<Vertex, Edge> {
+            _phantom: PhantomData,
+            vertices: &self.vertices,
+            keys: keys.into_iter(),
+            count: 0,
+            limit: search.limit(),
+        }
+    }
+
+    fn edge(&self, id: Self::EdgeId) -> Option<Self::EdgeReference<'_>> {
+        if let Some(conn) = self.edges.get_connection(id) {
+            if let Some(weight) = self.edges.get(id) {
+                return Some(EdgeReference {
+                    id,
+                    weight,
+                    from: conn.from(),
+                    to: conn.to(),
+                });
+            }
+        }
+        None
+    }
+
+    fn edge_mut(&mut self, edge: Self::EdgeId) -> Option<Self::EdgeReferenceMut<'_>> {
+        let conn = self.edges.get_connection(edge)?;
+        let (from, to) = (conn.from(), conn.to());
+        if let Some(weight) = self.edges.get_mut(edge) {
+            return Some(EdgeReferenceMut {
+                id: edge,
+                weight,
+                from,
+                to,
+            });
+        }
+        None
+    }
+
+    fn edges<'search>(
+        &self,
+        vertex: Self::VertexId,
+        search: &EdgeSearch<'search, Self>,
+    ) -> Self::EdgeIter<'search, '_> {
+        use graph_api_lib::Direction;
+
+        // 首先获取所有符合条件的边（基于方向）
+        let candidate_edges: Vec<EdgeId> = match search.direction {
+            Direction::Outgoing => self.edges.edges_from(vertex).collect(),
+            Direction::Incoming => self.edges.edges_to(vertex).collect(),
+            Direction::All => self.edges.edges_adjacent(vertex).collect(),
+        };
+
+        // 然后过滤掉不符合标签条件的边
+        let filtered_keys: Vec<EdgeId> = if let Some(target_label) = search.label {
+            candidate_edges
+                .into_iter()
+                .filter(|&edge_id| {
+                    if let Some(edge_weight) = self.edges.get(edge_id) {
+                        edge_weight.label() == target_label
+                    } else {
+                        false
+                    }
+                })
+                .collect()
+        } else {
+            candidate_edges
+        };
+
+        EdgeIter::<Vertex, Edge> {
+            _phantom: PhantomData,
+            edges: &self.edges,
+            keys: filtered_keys.into_iter(),
+            count: 0,
+            limit: search.limit(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.vertices.clear();
+        self.edges.clear();
+    }
+}
+
+// 实现所有支持trait
+impl<Vertex, Edge> SupportsVertexLabelIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsEdgeLabelIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsVertexHashIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsEdgeHashIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsVertexRangeIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsEdgeRangeIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsVertexFullTextIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsEdgeAdjacentLabelIndex for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+}
+
+impl<Vertex, Edge> SupportsClear for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    fn clear(&mut self) {
+        self.vertices.clear();
+        self.edges.clear();
+    }
+}
+
+impl<Vertex, Edge> SupportsElementRemoval for SlotMapGraph<Vertex, Edge>
+where
+    Vertex: Element + Clone,
+    Edge: Element + Clone,
+{
+    fn remove_vertex(&mut self, id: Self::VertexId) -> Option<Self::Vertex> {
+        // 删除顶点时，也需要删除相关的所有边
+        let edges_to_remove: Vec<EdgeId> = self.edges.edges_adjacent(id).collect();
+        for edge_id in edges_to_remove {
+            self.edges.remove(edge_id);
+        }
+
+        self.vertices.remove(id)
+    }
+
+    fn remove_edge(&mut self, edge: Self::EdgeId) -> Option<Self::Edge> {
+        self.edges.remove(edge).map(|(edge, _)| edge)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use graph_api_lib::{Element, Graph, VertexSearch, VertexReference, EdgeReference};
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    struct TestVertex {
+        name: String,
+        value: i32,
+    }
+
+    #[derive(Debug, Clone)]
+    struct TestEdge {
+        weight: f64,
+    }
+
+    impl Element for TestVertex {
+        type Label = ();
+
+        fn label(&self) -> Self::Label {
+            ()
+        }
+    }
+
+    impl Element for TestEdge {
+        type Label = ();
+
+        fn label(&self) -> Self::Label {
+            ()
+        }
+    }
+
+    #[test]
+    fn test_graph_basic_operations() {
+        let mut graph = SlotMapGraph::<TestVertex, TestEdge>::new();
+
+        // 添加顶点
+        let v1 = graph.add_vertex(TestVertex {
+            name: "A".to_string(),
+            value: 1,
+        });
+        let v2 = graph.add_vertex(TestVertex {
+            name: "B".to_string(),
+            value: 2,
+        });
+        let v3 = graph.add_vertex(TestVertex {
+            name: "C".to_string(),
+            value: 3,
+        });
+
+        // 添加边
+        let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });
+        let e2 = graph.add_edge(v2, v3, TestEdge { weight: 2.5 });
+        let e3 = graph.add_edge(v1, v3, TestEdge { weight: 3.5 });
+
+        // 验证顶点
+        assert_eq!(graph.vertex(v1).unwrap().weight().name, "A");
+        assert_eq!(graph.vertex(v2).unwrap().weight().name, "B");
+        assert_eq!(graph.vertex(v3).unwrap().weight().name, "C");
+
+        // 验证边
+        assert_eq!(graph.edge(e1).unwrap().weight().weight, 1.5);
+        assert_eq!(graph.edge(e1).unwrap().tail(), v1);
+        assert_eq!(graph.edge(e1).unwrap().head(), v2);
+
+        // 测试度数计算
+        assert_eq!(graph.out_degree(v1), 2);
+        assert_eq!(graph.in_degree(v1), 0);
+        assert_eq!(graph.out_degree(v2), 1);
+        assert_eq!(graph.in_degree(v2), 1);
+        assert_eq!(graph.out_degree(v3), 0);
+        assert_eq!(graph.in_degree(v3), 2);
+
+        // 测试边查询
+        assert!(graph.has_edge(v1, v2));
+        assert!(!graph.has_edge(v2, v1));
+        assert!(graph.has_edge(v1, v3));
+
+        // 测试遍历
+        let vertices: Vec<_> = graph.vertices(&VertexSearch::scan()).collect();
+        assert_eq!(vertices.len(), 3);
+    }
+
+    #[test]
+    fn test_edge_removal() {
+        let mut graph = SlotMapGraph::<TestVertex, TestEdge>::new();
+
+        let v1 = graph.add_vertex(TestVertex {
+            name: "A".to_string(),
+            value: 1,
+        });
+        let v2 = graph.add_vertex(TestVertex {
+            name: "B".to_string(),
+            value: 2,
+        });
+
+        let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });
+        assert!(graph.has_edge(v1, v2));
+
+        // 删除边
+        let removed_edge = graph.remove_edge(e1);
+        assert!(removed_edge.is_some());
+        assert!(!graph.has_edge(v1, v2));
+    }
+
+    #[test]
+    fn test_vertex_removal() {
+        let mut graph = SlotMapGraph::<TestVertex, TestEdge>::new();
+
+        let v1 = graph.add_vertex(TestVertex {
+            name: "A".to_string(),
+            value: 1,
+        });
+        let v2 = graph.add_vertex(TestVertex {
+            name: "B".to_string(),
+            value: 2,
+        });
+        let v3 = graph.add_vertex(TestVertex {
+            name: "C".to_string(),
+            value: 3,
+        });
+
+        let e1 = graph.add_edge(v1, v2, TestEdge { weight: 1.5 });
+        let e2 = graph.add_edge(v1, v3, TestEdge { weight: 2.5 });
+
+        // 删除顶点v1应该同时删除相关的边
+        let removed_vertex = graph.remove_vertex(v1);
+        assert!(removed_vertex.is_some());
+        assert_eq!(removed_vertex.unwrap().name, "A");
+
+        // 验证边被删除
+        assert!(!graph.contains_vertex(v1));
+        assert!(!graph.contains_edge(e1));
+        assert!(!graph.contains_edge(e2));
+
+        // 验证其他顶点还在
+        assert!(graph.contains_vertex(v2));
+        assert!(graph.contains_vertex(v3));
+    }
+}

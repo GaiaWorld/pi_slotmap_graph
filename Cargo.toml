@@ -1,0 +1,33 @@
+[package]
+name = "pi_slotmap_graph"
+version = "0.1.0"
+authors = ["zmythleo <zmythleo@gmail.com>"]
+edition = "2021"
+description = "dag interface."
+repository = "https://github.com/GaiaWorld/pi_graph"
+license = "MIT OR Apache-2.0"
+keywords = ["pi", "dag", "graph"]
+
+[dependencies]
+log = "0.4"
+pi_hash = "0.1"
+pi_share = "0.5"
+pi_print_any = "0.1"
+pi_slotmap = "0.2"
+pi_map = "0.2"
+paste = "1.0.15"
+smallvec = "1.11"
+uuid = { version = "1.18", features = ["v4"] }
+graph-api-lib = { path = "../graph-api/graph-api-lib", package = "graph-api-lib" }
+fastbloom = "0.12"
+rphonetic = "3.0"
+smallbox = "0.8"
+
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+graph-api-test = { path = "../graph-api/graph-api-test", package = "graph-api-test" }
+graph-api-lib = { path = "../graph-api/graph-api-lib", package = "graph-api-lib" }
+pcg_rand = "0.13"
+env_logger = "0.9"
+rand_core = "0.6"
