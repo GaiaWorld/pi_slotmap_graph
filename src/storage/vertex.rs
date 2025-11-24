@@ -278,9 +278,8 @@ where
         self.clear()
     }
 
-    fn contains(&self, _id: impl Into<StorageKey>) -> bool {
-        // 简化实现，返回 false
-        false
+    fn contains(&self, id: impl Into<StorageKey>) -> bool {
+        self.contains(VertexId(id.into().0))
     }
 
     fn iter(&self) -> super::container::ContainerIter<'_, V, Self>
