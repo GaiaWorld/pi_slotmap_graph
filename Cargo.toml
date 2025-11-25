@@ -28,6 +28,7 @@ smallbox = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 graph-api-test = { path = "../graph-api/graph-api-test", package = "graph-api-test" }
 graph-api-lib = { path = "../graph-api/graph-api-lib", package = "graph-api-lib" }
+graph-api-simplegraph = { path = "../graph-api/graph-api-simplegraph", package = "graph-api-simplegraph" }
 pcg_rand = "0.13"
 env_logger = "0.9"
 rand_core = "0.6"

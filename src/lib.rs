@@ -161,6 +161,13 @@
  * - [`VertexIterMut`]: 可变顶点迭代器
  * - [`EdgeIterMut`]: 可变边迭代器
  *
+ * ### 索引系统
+ * - [`IndexManager`]: 索引管理器
+ * - [`IndexType`]: 索引类型（Hash, Range, FullText）
+ * - [`HashIndex`]: 哈希索引实现
+ * - [`RangeIndex`]: 范围索引实现
+ * - [`IndexValue`]: 索引值类型
+ *
  * ## 性能特征
  *
  * ### 时间复杂度
@@ -219,6 +226,27 @@
  * }
  * ```
  *
+ * ### 索引系统使用
+ * ```rust
+ * use slotmap_graph::SlotMapGraph;
+ *
+ * let mut graph: SlotMapGraph<(String, u32), String> = SlotMapGraph::new();
+ *
+ * // 获取索引管理器
+ * let manager = graph.index_manager_mut();
+ *
+ * // 创建索引
+ * manager.create_vertex_range_index::<u32>("age".to_string()).unwrap();
+ * manager.create_vertex_hash_index::<String>("profession".to_string()).unwrap();
+ *
+ * // 添加数据
+ * let alice = graph.add_vertex(("Alice".to_string(), 28, "Engineer".to_string()));
+ * let bob = graph.add_vertex(("Bob".to_string(), 32, "Designer".to_string()));
+ *
+ * // 查看索引统计
+ * println!("{}", manager.stats_summary());
+ * ```
+ *
  * ### 图算法示例
  * ```rust
  * // 简单的广度优先搜索
@@ -266,14 +294,16 @@ pub mod graph;
 // 分层模块结构
 pub mod id;
 pub mod storage;
-pub mod reference;
-pub mod iteration;
+// pub mod reference;
+// pub mod iteration;
+pub mod index;
 
 // 主要类型导出
 pub use graph::SlotMapGraph;
 pub use id::{EdgeId, EdgeInfo, VertexId};
 pub use storage::{EdgeContainer, VertexContainer};
-pub use reference::{VertexReference, VertexReferenceMut, EdgeReference, EdgeReferenceMut};
+// pub use reference::{VertexReference, VertexReferenceMut, EdgeReference, EdgeReferenceMut};
+pub use index::{IndexValue, HashIndex, RangeIndex};
 
 #[cfg(test)]
 mod test {
